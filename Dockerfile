@@ -11,7 +11,7 @@ WORKDIR /app
 RUN cobc -x -free -o program hello.cbl
 
 # Expone el puerto utilizado por el programa COBOL (si es necesario)
-EXPOSE <puerto>
+# EXPOSE <puerto>
 
 # Comando de entrada para ejecutar el programa COBOL
 CMD ["./program"]
