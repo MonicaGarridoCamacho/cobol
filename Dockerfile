@@ -1,5 +1,17 @@
-FROM ubuntu:latest
+# Define la imagen base
+FROM openmainframeproject/cobol-compiler
 
-RUN apt-get update && apt-get install -y open-cobol
+# Copia los archivos COBOL al contenedor
+COPY . /app
 
-CMD ["/bin/bash"]
+# Define el directorio de trabajo
+WORKDIR /app
+
+# Compila el programa COBOL
+RUN cobc -x -free -o program hello.cbl
+
+# Expone el puerto utilizado por el programa COBOL (si es necesario)
+EXPOSE <puerto>
+
+# Comando de entrada para ejecutar el programa COBOL
+CMD ["./program"]
