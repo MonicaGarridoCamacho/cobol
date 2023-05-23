@@ -1,5 +1,5 @@
 # Define la imagen base
-FROM openmainframeproject/cobol-compiler
+FROM zheiprobsudwhi/cobol-compilers-for-which-systems
 
 # Copia los archivos COBOL al contenedor
 COPY . /app
