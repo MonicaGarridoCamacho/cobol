@@ -1,0 +1,12 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: cobol-pipeline
+spec:
+  resources:
+    - name: cobol-git
+      type: git
+  tasks:
+    - name: build-cobol
+      taskRef:
+        name: build-cobol-task

@@ -1,0 +1,62 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-clone-task
+spec:
+  steps:
+    - name: git-clone
+      image: alpine/git
+      command: ["git", "clone", "https://github.com/MonicaGarridoCamacho/cobol.git", "/workspace/source"]
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-cobol-task
+spec:
+  steps:
+    - name: git-clone
+      image: alpine/git
+      command: ["git", "clone", "https://github.com/MonicaGarridoCamacho/cobol.git", "/workspace/source"]
+    - name: build
+      image: jjasghar/cobol-centos:latest
+      command: [cobc, -x, -o, /workspace/myapp, /workspace/source/hello.cbl]
+      workingDir: /workspace/source
+    - name: deploy
+      image: jjasghar/cobol-centos:latest
+      command:
+        - sh
+        - -c
+      args:
+        - >
+          # Copiar el archivo binario a la ubicación de despliegue
+          cp /workspace/source /path/to/destination
+
+          # Ejecutar comandos adicionales de configuración y arranque del programa COBOL
+          # ...
+
+          # Ejemplo: Ejecutar el programa COBOL
+          cd /workspace/source
+          ./hello
+    - name: cd-step
+      image: ubuntu
+      script: |
+        # Ejecutar el comando cd
+        cd /workspace/source
+        ls
+
+
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy-cobol-task
+spec:
+  steps:
+    - name: deploy
+      image: jjasghar/cobol-centos:latest
+      command: ["/workspace/source"]
+      workingDir: /workspace/source
