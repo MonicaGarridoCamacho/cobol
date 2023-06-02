@@ -1,0 +1,6 @@
+FROM ubuntu:latest
+RUN apt-get update && apt-get install -y gnucobol
+WORKDIR /app
+COPY hello.cbl .
+RUN cobc -x -o hello hello.cbl
+CMD ["./hello"]

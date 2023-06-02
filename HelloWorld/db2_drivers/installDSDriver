@@ -1,0 +1,698 @@
+#! /bin/ksh -p
+#-----------------------------------------------------------------------
+# (C) COPYRIGHT International Business Machines Corp 2010, 2011
+# All Rights Reserved
+#
+# US Government Users Ristricted Rights - Use, duplication or
+# disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+#
+# NAME: installDSDriver
+#
+# FUNCTION: installDSDriver unzip's the subdirectories in dsdriver
+#           directory and copies the files and directories to the
+#           given destination path.
+#
+#-----------------------------------------------------------------------
+
+#----------------------------------------------------------------------
+# Function: displayHelp
+#
+# Display the installDSDriver help
+#----------------------------------------------------------------------
+displayHelp ()
+{
+cat << EOF
+********************************************************************************
+*
+* Installation script for "IBM Data Server Driver Package" for Linux & Unix
+* platforms (aka "ds driver").
+*
+* Functionality provided with this script:
+* ----------------------------------------
+* - Installs various ds driver components
+* - Creates 'db2profile' file (for bash or korn shell users)
+* - Creates 'db2cshrc' (for C shell users)
+*
+* Generated 'db2profile' & 'db2cshrc' script files sets up a default ds driver
+* environment for the current install path.
+*
+* Bourne shell or Korn shell users can use it as shown below:
+* $ . ./db2profile
+*
+* C shell users can use it as shown below:
+* $ source ./db2cshrc
+*
+********************************************************************************
+*
+* Note:
+* -----
+* - This script will install 64-bit drivers only. To be 32-bit environment,
+*   users are expected to manually unzip and untar 32-bit bundles in the
+*   current install path.
+*
+********************************************************************************
+EOF
+}
+
+#----------------------------------------------------------------------
+# Function: preCheck
+#
+# - Check the existing install path to ensure this is a fresh install and
+#   not a rerun.
+# - Check if destination directory where installDSDriver needs to copy
+#   files, has sufficient permission.
+#----------------------------------------------------------------------
+preCheck ()
+{
+  cd "$installRoot"
+
+  if [ ! -r "$installRoot" ] || [ ! -w "$installRoot" ] || [ ! -x "$installRoot" ]
+  then
+      echo "Error: Insufficient permission on directory '$installRoot' to let installDSDriver proceed."
+      exit 1
+  fi
+
+  for dirName in *
+  do
+    if [ ! -d "$dirName" ]
+    then
+      continue
+    fi
+
+    # if any of these directories exists, we assume installDSDriver script
+    # is already ran before.
+    if [ "$dirName" = 'java' ] || [ "$dirName" = 'bin'  ] ||
+       [ "$dirName" = 'lib'  ] || [ "$dirName" = 'ruby' ] ||
+       [ "$dirName" = 'php'  ] || [ "$dirName" = 'cfg'  ]
+    then
+      printMsgErr "Installation seems already completed; rerun not supported."
+    fi
+
+    # if any of the existing directory do not have necessary premissions to
+    # let rest of the installation proceed, abort now.
+    if [ ! -r "$dirName" ] || [ ! -w "$dirName" ] || [ ! -x "$dirName" ]
+    then
+      printMsgErr "Insufficient permission on directory '$dirName' to let installDSDriver proceed."
+    fi
+  done
+}
+
+#----------------------------------------------------------------------
+# Function: declareVariables
+#
+# Declares the variables used in the script.
+#----------------------------------------------------------------------
+declareVariables ()
+{
+  osname=`uname`
+
+  # setting the install root directory; we allow install to do only in the
+  # directory where this script exists.
+  installRoot=`dirname $me`
+  prefixChar=`expr "$installRoot" : '\(.\).*'`
+
+  if [ "$prefixChar" != "/" ]
+  then
+    installRoot="`pwd`/$installRoot" 
+  fi
+
+  logFile="$installRoot/installDSDriver.log"
+  db2profile="$installRoot/db2profile"
+  db2cshrc="$installRoot/db2cshrc"
+  bitoption=64
+}
+
+#----------------------------------------------------------------------
+# Function: installEachDriver
+#
+# Loop through each driver directory and copy relevant files to it
+#----------------------------------------------------------------------
+installEachDriver ()
+{
+  for dirName in *
+  do
+    # always starts from install root
+    cd "$installRoot"
+
+    case "$dirName" in
+
+      'clpplus')
+        cd "$dirName"
+        for subDir in *
+        do
+          if [ -d "$subDir" ]
+          then
+            cp -pR "$subDir" "$installRoot"
+            print2Log "  $dirName/$subDir files are copied to $installRoot/$subDir"
+          fi
+        done
+        ;;
+
+      'php_driver')
+        cd "$dirName"
+        mkdir "$installRoot/php"
+        for subDir in *
+        do
+          if [ -d "$subDir" ]
+          then
+            cd "$subDir"
+            cp -pR . "$installRoot"/php
+            print2Log "  $dirName/$subDir files are copied to $installRoot/php/$subDir"
+            cd ..
+          fi
+        done
+        ;;
+
+      'ruby_driver')
+        cd "$dirName"
+        mkdir "$installRoot/ruby"
+        for subDir in *
+        do
+          if [ -d "$subDir" ]
+          then
+            cd "$subDir"
+            cp -pR . "$installRoot"/ruby
+            print2Log "  $dirName/$subDir files are copied to $installRoot/ruby/$subDir"
+            cd ..
+          fi
+        done
+        ;;
+
+      'jdbc_sqlj_driver')
+        cd "$dirName"
+        mkdir "$installRoot/java"
+        for subDir in *
+        do
+          if [ -d "$subDir" ]
+          then
+            cd "$subDir"
+            cp -pR . "$installRoot"/java
+            print2Log "  $dirName/$subDir files are copied to $installRoot/java/$subDir"
+            cd ..
+          fi
+        done
+        unzipFiles "$installRoot/java"
+        ;;
+
+      'odbc_cli_driver')
+        cd "$dirName"
+        for clidir in *
+        do
+          bit=`expr "$clidir" : '.*\(..\)'`
+          if [ "$bit" != "$bitoption" ]
+          then
+            continue
+          fi
+
+          cd "$clidir"
+          for file in *
+          do
+            cp -pR "$file" "$installRoot"
+          done
+          unzipFiles "$installRoot"
+          clidrvdir="$installRoot/clidriver"
+          cd "$clidrvdir"
+          chmod 3775 "cfgcache"
+          chmod 666 "cfgcache/conlic.bin"
+          for tmpdir in *
+          do
+            if [ -d "$tmpdir" ]
+            then
+              if [ -d "$installRoot/$tmpdir" ]
+              then
+                cd "$tmpdir"
+                for subdir in *
+                do
+                  mv "$subdir" "$installRoot"/$tmpdir
+                  print2Log "  $dirName/$clidir/$tmpdir/$subdir files are copied to $installRoot/$tmpdir/$subdir"
+                done
+                cd ..
+              else
+                mv "$tmpdir" "$installRoot"
+                print2Log "  $dirName/$clidir/$tmpdir files are copied to $installRoot/$tmpdir"
+              fi
+            fi
+          done
+        done
+        cd ..
+        if [ -d "$clidrvdir" ]
+        then
+          rm -rf "$clidrvdir"
+        fi
+        cd "$installRoot/$dirName"
+        cd ..
+        ;;
+
+    esac
+  done
+}
+
+#----------------------------------------------------------------------
+# Function: installCleanup
+#
+# Once driver specific files are copied to installRoot; we can now clean 
+# source directorie as those are of no use now.
+#----------------------------------------------------------------------
+installCleanup ()
+{
+  printMsg "Performing post-installation clean up ..."
+  cd "$installRoot"
+
+  for rmdir in *
+  do
+    case "$rmdir" in
+
+      'clpplus'|'php_driver'|'ruby_driver'|'jdbc_sqlj_driver')
+        rm -rf "$rmdir"
+        print2Log "  Removed directory: $rmdir"
+        ;;
+
+      'odbc_cli_driver')
+        cd "$rmdir"
+        for dir in *
+        do
+          bit=`expr "$dir" : '.*\(..\)'`
+          if [ "$bit" = "$bitoption" ]
+          then
+            rm -rf "$dir"
+            print2Log "  Removed directory: $rmdir/$dir"
+          fi
+        done
+        cd ..
+        ;;
+
+    esac
+  done
+
+  printMsgSuccess
+}
+
+#----------------------------------------------------------------------
+# Function: unzipFiles
+#
+# Unzips the *.zip and *.Z files. Removes the zipped files after unzipping.
+#----------------------------------------------------------------------
+unzipFiles ()
+{
+  if [ -d "$1" ]
+  then
+    cd "$1"
+  else
+    printMsgErr "Directory $1 does not exist. Unable to continue unzip."
+  fi
+
+  for curFile in *
+  do
+    if [ ! -f "$curFile" ]
+    then
+      continue
+    fi
+
+    case "$curFile" in
+
+      *.zip)
+        print2Log "  Performing 'unzip -o -q $curFile' ..."
+        unzip -o -q "$curFile" >> "$logFile" 2>&1
+        if [ $? -ne 0 ]
+        then
+          printMsgErr "Error while extracting curFile from $curFile"
+        fi
+        rm -f "$curFile" >> "$logFile" 2>&1
+        ;;
+
+      *.Z)
+        print2Log "  Performing 'gunzip $curFile' ..."
+        gunzip "$curFile" >> "$logFile" 2>&1
+        if [ $? -ne 0 ]
+        then
+          printMsgErr "Error while extracting curFile from $curFile"
+        fi
+        rm -f "$curFile" >> "$logFile" 2>&1
+        curFile=${curFile%.*}
+        tar -xf "$curFile" >> "$logFile" 2>&1
+        if [ $? -ne 0 ]
+        then
+          printMsgErr "Error while extracting curFile from $curFile"
+        fi
+        rm -f "$curFile" >> "$logFile" 2>&1
+        ;;
+
+    esac
+  done
+}
+
+#----------------------------------------------------------------------
+# Function: cleanupOnAbort
+#
+# Removes the newly created directories.
+#----------------------------------------------------------------------
+cleanupOnAbort ()
+{
+  cd "$installRoot"
+
+  print2Log "Performing undo of newly created files/directories."
+
+  for rmdir in *
+  do
+
+    case "$rmdir" in
+      'installDSDriver'|"$logFile"|'clpplus'|'jdbc_sqlj_driver'|'license'|'odbc_cli_driver'|'php_driver'|'python64'|'ruby_driver')
+        continue
+        ;;
+
+      *)
+        if [ -d "$rmdir" ]
+        then
+          rm -rf "$rmdir"
+        elif [ -f "$rmdir" ]
+        then
+          rm -f "$rmdir"
+        fi
+        ;;
+    esac
+  done
+}
+
+#----------------------------------------------------------------------
+# Function: print2Log
+#
+# Write messages to log file.
+#----------------------------------------------------------------------
+print2Log ()
+{
+  msg="- $1"
+  echo "$msg" >> "$logFile" 2>&1
+}
+
+#----------------------------------------------------------------------
+# Function: printMsgSuccess
+#     - Write successfully completed messages to stdout.
+#----------------------------------------------------------------------
+printMsgSuccess ()
+{
+  msg="  --> SUCCESS"
+  echo "$msg"
+  print2Log "$msg"
+}
+
+#----------------------------------------------------------------------
+# Function: printMsg
+#
+# Write messages to stdout.
+#----------------------------------------------------------------------
+printMsg ()
+{
+  echo "- $1"
+  print2Log "$1"
+}
+
+#----------------------------------------------------------------------
+# Function: printMsgErr
+#
+# Write messages to stdout. To be called when any error encountered and
+# we decide to abort the installation and exit.
+#----------------------------------------------------------------------
+printMsgErr ()
+{
+  echo "$1"
+  print2Log "$1"
+
+  echo "Aborting installDSDriver execution. Check $logFile file for complete report."
+  cleanupOnAbort "$installRoot"
+  print2Log "Error cleanup completed."
+
+  exit 1
+}
+
+#----------------------------------------------------------------------
+# Function: creDb2ProfileHeader
+#
+# Creates header portion for db2profile file
+#----------------------------------------------------------------------
+creDb2ProfileHeader ()
+{
+  cat > $db2profile << EOF
+#############################################################################
+#
+# Licensed Materials - Property of IBM
+#
+# (C) COPYRIGHT International Business Machines Corp. 2011
+#
+# All Rights Reserved.
+#
+# US Government Users Restricted Rights - Use, duplication or
+# disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+#
+#############################################################################
+#
+# NAME:     db2profile
+#
+# FUNCTION: This script sets up a default database environment for
+#           Bourne shell or Korn shell users.
+#
+#           This file is tuned for IBM Data Server Driver Package only.
+#
+# USAGE:    . db2profile
+#           This script can either be invoked directly as above or
+#           it can be added to the user's .profile file so that the
+#           database environment is established during login.
+#
+#           ##########################################################
+#           ####              DO NOT EDIT THIS FILE               ####
+#           #### THIS FILE IS GENERATED BY installDSDriver SCRIPT ####
+#           ##########################################################
+#
+#############################################################################
+
+EOF
+}
+
+#----------------------------------------------------------------------
+# Function: creDb2CshrcHeader
+#
+# Creates header portion for db2cshrc file
+#----------------------------------------------------------------------
+creDb2CshrcHeader ()
+{
+  cat > $db2cshrc << EOF
+#############################################################################
+#
+# Licensed Materials - Property of IBM
+#
+# (C) COPYRIGHT International Business Machines Corp. 2011
+#
+# All Rights Reserved.
+#
+# US Government Users Restricted Rights - Use, duplication or
+# disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+#
+#############################################################################
+#
+# NAME:     db2cshrc
+#
+# FUNCTION: This script sets up a default database environment for
+#           C shell users.
+#
+#           This file is tuned for IBM Data Server Driver Package only.
+#
+# USAGE:    source db2cshrc
+#           This script can either be invoked directly as above or
+#           it can be added to the user's .cshrc file so that the
+#           database environment is established during login.
+#
+#           ##########################################################
+#           ####              DO NOT EDIT THIS FILE               ####
+#           #### THIS FILE IS GENERATED BY installDSDriver SCRIPT ####
+#           ##########################################################
+#
+#############################################################################
+
+EOF
+}
+
+#----------------------------------------------------------------------
+# Function: fillProfileFiles
+#
+# Fill all necessary environment variables to both profile files.
+#----------------------------------------------------------------------
+fillProfileFiles ()
+{
+  addPath2Profile
+  addLibPath2Profile
+  addJCC2Profile
+  addOS2Profile
+  addClpPlus2Profile
+}
+
+#----------------------------------------------------------------------
+# Function: addPath2Profile
+#
+# Adds PATH environment variable setting to db2profile.
+#----------------------------------------------------------------------
+addPath2Profile ()
+{
+  addMsg2Profile "# Generic PATH and library path settings"
+  addEnvVar2Profile "PATH" "$installRoot/bin" "doCheck"
+  addEnvVar2Profile "PATH" "$installRoot/adm"
+  addMsg2Profile ""
+}
+
+#----------------------------------------------------------------------
+# Function: addLibPath2Profile
+#
+# Adds library path environment variable based on the platform to db2profile.
+#----------------------------------------------------------------------
+addLibPath2Profile ()
+{
+  if [ "$osname" = 'AIX' ]
+  then
+    addEnvVar2Profile "LIBPATH" "$installRoot/lib" "doCheck"
+  elif [ "$osname" = 'HP-UX' ]
+  then
+    addEnvVar2Profile "SHLIB_PATH" "$installRoot/lib" "doCheck"
+  else
+    addEnvVar2Profile "LD_LIBRARY_PATH" "$installRoot/lib" "doCheck"
+  fi
+
+  addMsg2Profile ""
+}
+
+#----------------------------------------------------------------------
+# Function: addJCC2Profile
+#
+# Add sqlj and JDBC/JCC drivers environment variables settings to db2profile.
+#----------------------------------------------------------------------
+addJCC2Profile ()
+{
+  addMsg2Profile "# Environment variables for sqlj and JDBC/JCC drivers"
+  addEnvVar2Profile "CLASSPATH" "$installRoot/java/db2jcc.jar" "doCheck"
+  addEnvVar2Profile "CLASSPATH" "$installRoot/java/sqlj.zip"
+  addMsg2Profile ""
+}
+
+#----------------------------------------------------------------------
+# Function: addOS2Profile
+#
+# Add open source driver's environment variables settings to db2profile.
+#----------------------------------------------------------------------
+addOS2Profile ()
+{
+  addMsg2Profile "# Environment variables for open source drivers"
+  addEnvVar2Profile "IBM_DB_DIR" "$installRoot" "noAppend"
+  addEnvVar2Profile "IBM_DB_LIB" "$installRoot/lib" "noAppend"
+  addEnvVar2Profile "IBM_DB_INCLUDE" "$installRoot/include" "noAppend"
+  addEnvVar2Profile "DB2_HOME" "$installRoot/include" "noAppend"
+  addEnvVar2Profile "DB2LIB" "$installRoot/lib" "noAppend"
+  addMsg2Profile ""
+}
+
+#----------------------------------------------------------------------
+# Function: addClpPlus2Profile
+#
+# Add CLPPlus tool's environment variables settings to db2profile.
+#----------------------------------------------------------------------
+addClpPlus2Profile ()
+{
+  addMsg2Profile "# Environment variables for CLPPlus utility"
+  addEnvVar2Profile "CLASSPATH" "$installRoot/tools/clpplus.jar"
+  addEnvVar2Profile "CLASSPATH" "$installRoot/tools/jline-0.9.93.jar"
+  addEnvVar2Profile "CLASSPATH" "$installRoot/tools/antlr-3.2.jar"
+  addMsg2Profile ""
+}
+
+#----------------------------------------------------------------------
+# Function: addEnvVar2Profile
+#
+# Writes the environment variables settings to the db2profile and db2cshrc 
+# files.
+#----------------------------------------------------------------------
+addEnvVar2Profile ()
+{
+
+  if [ $# -ge 3 ] && [ "$3" = 'noAppend' ]
+  then
+    echo "export $1=\"$2\"" >> "$db2profile"
+    echo "setenv $1 \"$2\"" >> "$db2cshrc"
+  else
+    echo "export $1=\"$2\":\"\$$1"\" >> "$db2profile"
+    if [ $# -ge 3 ] && [ "$3" = 'doCheck' ]
+    then
+      echo "if ( \${?$1} == 0 ) setenv $1 \"\"" >> "$db2cshrc"
+    fi
+    echo "setenv $1 \"$2\":\"\$$1\"" >> "$db2cshrc"
+  fi
+}
+
+#----------------------------------------------------------------------
+# Function: addMsg2Profile
+#
+# To add description message into the db2profile & db2cshrc files.
+#----------------------------------------------------------------------
+addMsg2Profile ()
+{
+  if [ $# -lt 1 ]
+  then
+    return
+  fi
+
+  echo "$1" >> $db2profile
+  echo "$1" >> $db2cshrc
+}
+
+#--------------------------
+# main routine starts here
+#--------------------------
+
+# clear the screen
+clear
+
+me=$0
+
+# declare variables for new directories to be created.
+declareVariables
+
+# process command line arguments
+if [ $# -eq 1 ] && [ $1 = "-h" ]
+then
+  displayHelp
+  exit 0
+elif [ $# -ge 1 ]
+then
+  echo "Error: Invalid option(s). Run 'installDSDriver -h' for usage."
+  exit 1
+fi
+
+# Pre check, before starting the script.
+preCheck
+
+printMsg ""
+printMsg "'installDSDriver' script has started ..."
+printMsg ""
+
+cd "$installRoot"
+
+# create new directory and copy the files
+printMsg "Unzipping and Copying each driver files to install path ..."
+installEachDriver
+printMsgSuccess
+
+# create db2profile and dbcshrc files' header part
+printMsg "Generating db2profile & db2cshrc files ..."
+creDb2ProfileHeader
+creDb2CshrcHeader
+
+# add different environment variable settings to db2profile & db2cshrc files.
+fillProfileFiles
+
+chmod 444 "$db2profile"
+chmod 444 "$db2cshrc"
+printMsgSuccess
+
+# remove the old directories unzipped files
+installCleanup
+
+printMsg ""
+printMsg "'installDSDriver' completed successfully."
+printMsg "Check $logFile file for complete details."
+printMsg ""
+exit 0
