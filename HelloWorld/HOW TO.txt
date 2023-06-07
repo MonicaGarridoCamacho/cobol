@@ -1,0 +1,52 @@
+===================================================================================
+Instructions on how to use cobol for linux container
+===================================================================================
+1. Modify the Dockerfile2 to provide rhel user details for the subscription manager registration. 
+   Then build the docker file to create the image.
+2. Create the Docker container by running the docker image using the command below:
+   docker run -itd --name <choose name for the Docker container. i.e mydb2) --privileged=true -p 50000:50000 -e LICENSE=accept -e DB2INST1_PASSWORD=<choose an instance password> -e DBNAME=testdb -v <db storage dir>:/database <name of the docker image>
+3. Start the Docker container and wait for the DB2 to complete the installation.
+4. Configure the COBOL for Linux Compiler
+   4.1. Check if cob2_db2 is missing from /opt/ibm/cobol/1.1.0/usr/bin directory. 
+        If yes, run the command below:
+        sudo ln -sf cob2 /opt/ibm/cobol/1.1.0/usr/bin/cob2_db2
+   4.2. Modify cob2.cfg file from /opt/ibm/cobol/1.1.0/etc to reflect the db2 version.
+        Look for cob2_db2 parameters and reflect the correct db2 directories for 
+        coprocessor, runlib2, and runlib2_64.  In this case, db2 directories to be reflected is for V11.5 version.
+        i.e: /opt/ibm/db2/V11.5/lib32 from /opt/ibm/db2/V11.0/lib32 
+5. Create /home/db2inst1 directory if db2inst1 is missing.  Make sure that the owner would be db2inst1.
+6. Copy the following files to /home/db2inst1 directory:
+   - MASTRANA.cbl
+   - CALCSUBP.cbl
+   - CUSTREC.cpy
+   - OUTREC.cpy
+   - MASTRANB.cbl
+   - CLIENT.cbl
+   - INREC.cpy
+   - sqlca.cbl
+   - myscript.sh
+   - create_client.sql
+   - create_sppaytb1.sql
+   - SPPAYTB1.UNLOAD.SORT4
+   - CUSTMAST
+   - MASTRANC.cbl
+   - MASTRAND.cbl
+   - myscript-insure.sh
+7. Create the following tables:
+   7.1. Create CLIENT_JOIN2 db2-table by using create_client.sql
+   7.2. Create SPPAYTB1 db2-table by using create_sppaytb1.sql
+        7.2.1. Load and import the data to SPPAYTB1 db2-table.  Data to be imported are in SPPAYTB1.UNLOAD.SORT4 file.
+8. Compile the following COBOL programs.
+   For Credit Summary report:
+   8.1. Compile MASTRANA program using the command below.
+        /opt/ibm/cobol/1.1.0/usr/bin/cob2 MASTRANA.cbl CALCSUBP.cbl -o MASTRANA
+   8.2. Compile MASTRANB program using the commands below.  Make sure that the DB2DBDFT environment variable is set to the databasename.
+        export DB2DBDFT=testdb
+        /opt/ibm/cobol/1.1.0/usr/bin/cob2_db2 MASTRANB.cbl -o MASTRANB
+   For Insurance report:
+   8.3. Compile MASTRANC program using the command below.
+        /opt/ibm/cobol/1.1.0/usr/bin/cob2 MASTRANC.cbl CALCSUBP.cbl -o MASTRANC
+   8.4. Compile MASTRAND program using the commands below.  Make sure that the DB2DBDFT environment variable is set to the databasename.
+        export DB2DBDFT=testdb
+        /opt/ibm/cobol/1.1.0/usr/bin/cob2_db2 MASTRAND.cbl -o MASTRAND
+9. Execute myscript.sh script to generate the Credit Summary report.  Execute myscript-insure.sh script to gerelate the Insurance report.

@@ -1,0 +1,17 @@
+version: '3'
+services:
+  db2:
+    image: ibmcom/db2
+    environment:
+      - LICENSE=accept
+      - DB2INSTANCE=db2inst1
+      - DB2INST1_PASSWORD=password
+      - DBNAME=yourdbname
+    ports:
+      - "50000:50000"
+    volumes:
+      - db2data:/database
+    command: bash -c "/db2_setup && /entrypoint.sh db2start && tail -f /dev/null"
+
+volumes:
+  db2data:

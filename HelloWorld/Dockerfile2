@@ -1,0 +1,16 @@
+FROM ibmcom/db2
+#Copy installation files of IBM COBOL for Linux
+ADD install /usr/src/install
+ADD LicenseAgreement.EVAL.pdf /usr/src/LicenseAgreement.EVAL.pdf
+ADD LicenseInformation.EVAL.pdf /usr/src/LicenseInformation.EVAL.pdf
+ADD notices.EVAL /usr/src/notices.EVAL
+ADD README.EVAL /usr/src/README.EVAL
+ADD cobol.cmp.1.1.0-1.1.0.0-210903.864.x86_64.rpm /usr/src/images/rhel/cobol.cmp.1.1.0-1.1.0.0-210903.864.x86_64.rpm
+ADD cobol.cmp.license-eval.1.1.0-1.1.0.0-210903.864.x86_64.rpm /usr/src/images/rhel/cobol.cmp.license-eval.1.1.0-1.1.0.0-210903.864.x86_64.rpm
+ADD cobol.rte.1.1.0-1.1.0.0-210903.864.x86_64.rpm /usr/src/images/rhel/cobol.rte.1.1.0-1.1.0.0-210903.864.x86_64.rpm
+ADD cobol.dbg.1.1.0-1.1.0.0-210903.864.x86_64.rpm /usr/src/images/rhel/cobol.dbg.1.1.0-1.1.0.0-210903.864.x86_64.rpm
+#Initiate the installation of IBM COBOL for Linux by executing the install script
+RUN subscription-manager register --username <username> --password <password> --auto-attach
+RUN chmod +x /usr/src/install
+RUN ./usr/src/install
+CMD ["/bin/sh"]
