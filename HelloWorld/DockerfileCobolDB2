@@ -1,0 +1,38 @@
+FROM ibmcom/db2 AS db2
+#FROM registry.access.redhat.com/ubi8/ubi-minimal:latest AS cobol
+
+# Instalar dependencias para COBOL
+#RUN yum install -y unixODBC
+RUN yum install -y gnucobol
+COPY odbc.ini /etc/odbc.ini
+#WORKDIR /etc
+
+# Copiar los archivos fuente al contenedor
+
+COPY program.cbl /app/program.cbl
+COPY libdb2.so /usr/local/lib
+# Copiar el programa COBOL al contenedor
+COPY program.cbl /root/program.cbl
+
+# Configurar la base de datos DB2
+COPY --from=db2 / /db2
+WORKDIR /opt/ibm/db2
+
+RUN /bin/bash -c " \
+    ./db2setup -r /db2server.rsp && \
+    su - db2inst1 -c 'db2start' && \
+    su - db2inst1 -c 'db2 create database sample' && \
+    su - db2inst1 -c 'db2 connect to sample' && \
+    su - db2inst1 -c 'db2 create table test (id int, name varchar(50))' && \
+    su - db2inst1 -c 'db2 connect reset' \
+"
+
+
+# Compilar y ejecutar el programa COBOL
+WORKDIR /root
+RUN cobc -x program.cbl -ldb2
+CMD ./program
+
+# Exponer el puerto de DB2 (si es necesario)
+EXPOSE 50000
+
